@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SWILL Dash</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(45deg, #0f0f1a, #2a2a4a);
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+        #gameContainer {
+            position: relative;
+        }
+        canvas {
+            border: 3px solid #00ffea;
+            border-radius: 5px;
+            box-shadow: 0 0 20px #00ffea;
+            background-color: #121225;
+        }
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #00ffea;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 5px #00ffea;
+            z-index: 10;
+        }
+        #gameOver {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.85);
+            color: #ff0055;
+            padding: 30px;
+            border: 3px solid #ff0055;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 100;
+        }
+        #restartBtn {
+            background-color: #ff0055;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 20px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-family: inherit;
+            font-weight: bold;
+        }
+        #restartBtn:hover {
+            background-color: #ff3377;
+            box-shadow: 0 0 15px #ff0055;
+        }
+        #startScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.9);
+            color: #00ffea;
+            padding: 40px;
+            border: 3px solid #00ffea;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 100;
+        }
+        #startBtn {
+            background-color: #00ffea;
+            color: #000;
+            border: none;
+            padding: 15px 30px;
+            font-size: 20px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-top: 20px;
+            font-family: inherit;
+            font-weight: bold;
+        }
+        #startBtn:hover {
+            background-color: #33ffec;
+            box-shadow: 0 0 15px #00ffea;
+        }
+        .instructions {
+            margin-top: 20px;
+            font-size: 16px;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="ui">
+            Счёт: <span id="score">0</span>
+        </div>
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        <div id="startScreen">
+            <h1>SWILL DASH</h1>
+            <p>Нажмите ПРОБЕЛ, КЛИК или ВВЕРХ, чтобы прыгнуть</p>
+            <p>Избегайте препятствий!</p>
+            <button id="startBtn">СТАРТ</button>
+            <div class="instructions">
+                Цель: пройти как можно дальше. С каждым препятствием скорость увеличивается.
+            </div>
+        </div>
+        <div id="gameOver">
+            <h2>КРАХ СИСТЕМЫ</h2>
+            <p>Итоговый счёт: <span id="finalScore">0</span></p>
+            <p>Рекорд: <span id="highScore">0</span></p>
+            <button id="restartBtn">ПЕРЕЗАПУСК</button>
+        </div>
+    </div>
+
+    <script>
+        // Инициализация
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const finalScoreElement = document.getElementById('finalScore');
+        const highScoreElement = document.getElementById('highScore');
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOver');
+        const startBtn = document.getElementById('startBtn');
+        const restartBtn = document.getElementById('restartBtn');
+
+        // Переменные игры
+        let gameRunning = false;
+        let score = 0;
+        let highScore = localStorage.getItem('swillDashHighScore') || 0;
+        let gameSpeed = 5;
+        let speedIncreaseTimer = 0;
+
+        // Игрок
+        const player = {
+            x: 100,
+            y: canvas.height - 50,
+            width: 30,
+            height: 30,
+            color: '#00ffea',
+            velocityY: 0,
+            gravity: 0.8,
+            jumpForce: -15,
+            isJumping: false,
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                // Эффект свечения
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 15;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.shadowBlur = 0;
+            },
+            jump() {
+                if (!this.isJumping) {
+                    this.velocityY = this.jumpForce;
+                    this.isJumping = true;
+                }
+            },
+            update() {
+                // Гравитация
+                this.velocityY += this.gravity;
+                this.y += this.velocityY;
+
+                // Земля
+                if (this.y > canvas.height - this.height - 10) {
+                    this.y = canvas.height - this.height - 10;
+                    this.velocityY = 0;
+                    this.isJumping = false;
+                }
+
+                // Потолок (не даём улететь)
+                if (this.y < 0) {
+                    this.y = 0;
+                    this.velocityY = 0;
+                }
+            }
+        };
+
+        // Препятствия
+        let obstacles = [];
+        const obstacleWidth = 30;
+        const obstacleColors = ['#ff0055', '#ffaa00', '#ff00ff', '#00ffaa'];
+
+        class Obstacle {
+            constructor() {
+                this.x = canvas.width;
+                this.width = obstacleWidth;
+                this.height = Math.floor(Math.random() * 60) + 30;
+                this.y = canvas.height - this.height - 10;
+                this.color = obstacleColors[Math.floor(Math.random() * obstacleColors.length)];
+                this.passed = false;
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 10;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.shadowBlur = 0;
+            }
+            update() {
+                this.x -= gameSpeed;
+                // Проверка на прохождение
+                if (!this.passed && this.x + this.width < player.x) {
+                    score++;
+                    scoreElement.textContent = score;
+                    this.passed = true;
+                }
+                return this.x + this.width < 0; // Удалить, если за пределами
+            }
+            collides() {
+                return player.x < this.x + this.width &&
+                       player.x + player.width > this.x &&
+                       player.y < this.y + this.height &&
+                       player.y + player.height > this.y;
+            }
+        }
+
+        // Управление
+        const keys = {};
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if ((e.key === ' ' || e.key === 'ArrowUp') && gameRunning) {
+                player.jump();
+            }
+            if (e.key === 'r' || e.key === 'R') {
+                restartGame();
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        canvas.addEventListener('click', () => {
+            if (gameRunning) player.jump();
+        });
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (gameRunning) player.jump();
+        });
+
+        // Функции игры
+        function spawnObstacle() {
+            if (Math.random() < 0.02) { // Шанс появления
+                obstacles.push(new Obstacle());
+            }
+        }
+
+        function updateGame() {
+            // Игрок
+            player.update();
+
+            // Препятствия
+            spawnObstacle();
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].update();
+                if (obstacles[i].collides()) {
+                    gameOver();
+                    return;
+                }
+                if (obstacles[i].x + obstacles[i].width < 0) {
+                    obstacles.splice(i, 1);
+                }
+            }
+
+            // Увеличение скорости со временем
+            speedIncreaseTimer++;
+            if (speedIncreaseTimer > 300) { // Каждые ~5 секунд при 60 FPS
+                gameSpeed += 0.5;
+                speedIncreaseTimer = 0;
+            }
+        }
+
+        function drawGame() {
+            // Очистка
+            ctx.fillStyle = '#121225';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Отрисовка игрока
+            player.draw();
+
+            // Отрисовка препятствий
+            obstacles.forEach(obstacle => obstacle.draw());
+
+            // Отрисовка земли
+            ctx.fillStyle = '#333355';
+            ctx.fillRect(0, canvas.height - 10, canvas.width, 10);
+
+            // Эффекты
+            drawParticles();
+        }
+
+        // Простые частицы для эффектов
+        let particles = [];
+        function drawParticles() {
+            if (Math.random() < 0.3) {
+                particles.push({
+                    x: player.x + player.width,
+                    y: player.y + player.height - 5,
+                    size: Math.random() * 3 + 1,
+                    color: '#00ffea',
+                    speedX: -Math.random() * 3 - 2,
+                    life: 20
+                });
+            }
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.speedX;
+                p.life--;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+                ctx.shadowColor = p.color;
+                ctx.shadowBlur = 5;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+                ctx.shadowBlur = 0;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            finalScoreElement.textContent = score;
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('swillDashHighScore', highScore);
+            }
+            highScoreElement.textContent = highScore;
+            gameOverScreen.style.display = 'block';
+        }
+
+        function restartGame() {
+            score = 0;
+            gameSpeed = 5;
+            speedIncreaseTimer = 0;
+            obstacles = [];
+            particles = [];
+            player.y = canvas.height - 50;
+            player.velocityY = 0;
+            player.isJumping = false;
+            scoreElement.textContent = score;
+            gameOverScreen.style.display = 'none';
+            gameRunning = true;
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            startScreen.style.display = 'none';
+            gameRunning = true;
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Игровой цикл
+        function gameLoop() {
+            if (!gameRunning) return;
+            updateGame();
+            drawGame();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Инициализация интерфейса
+        highScoreElement.textContent = highScore;
+        startBtn.addEventListener('click', startGame);
+        restartBtn.addEventListener('click', restartGame);
+
+        // Готово
+        console.log('SWILL Dash инициализирован. Ожидание старта.');
+    </script>
+</body>
+</html>
