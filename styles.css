@@ -1,0 +1,249 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+body {
+    background: #000;
+    font-family: 'Arial Black', sans-serif;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    color: white;
+}
+
+#game-container {
+    position: relative;
+    width: 1000px;
+    height: 600px;
+    background: linear-gradient(135deg, #0a0a2a 0%, #1a1a4a 100%);
+    overflow: hidden;
+    border: 4px solid #00ffff;
+    box-shadow: 0 0 30px #00ffff,
+                inset 0 0 20px rgba(0, 255, 255, 0.3);
+}
+
+#game-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+}
+
+#ui {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 2;
+    font-size: 24px;
+    text-shadow: 2px 2px 0 #000,
+                 -2px -2px 0 #000,
+                 2px -2px 0 #000,
+                 -2px 2px 0 #000,
+                 0 0 10px #00ffff;
+}
+
+#score {
+    font-size: 36px;
+    color: #ffff00;
+    margin-bottom: 10px;
+}
+
+#level-name {
+    color: #ff00ff;
+    font-size: 20px;
+}
+
+#menu, #pause-menu, #level-select, #death-screen, #settings {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    padding: 40px;
+    border: 4px solid #00ffff;
+    border-radius: 20px;
+    z-index: 10;
+    text-align: center;
+    box-shadow: 0 0 50px rgba(0, 255, 255, 0.5);
+}
+
+#menu h1 {
+    color: #ffff00;
+    font-size: 48px;
+    margin-bottom: 30px;
+    text-shadow: 0 0 10px #ffff00,
+                 0 0 20px #ffff00;
+    letter-spacing: 3px;
+}
+
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+button {
+    background: linear-gradient(45deg, #ff00ff, #00ffff);
+    border: none;
+    color: white;
+    padding: 15px 30px;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: all 0.3s;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+}
+
+button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px #ff00ff,
+                0 0 30px #00ffff;
+}
+
+.instructions {
+    color: #aaa;
+    font-size: 14px;
+    margin-top: 20px;
+}
+
+.hidden {
+    display: none !important;
+}
+
+.level-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin: 30px 0;
+}
+
+.level-card {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 20px;
+    border-radius: 15px;
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 2px solid transparent;
+}
+
+.level-card:hover {
+    border-color: #ffff00;
+    transform: scale(1.05);
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.level-icon {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(45deg, #ff00ff, #00ffff);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    font-weight: bold;
+    margin: 0 auto 10px;
+}
+
+.level-title {
+    font-size: 16px;
+    margin-bottom: 10px;
+    color: #ffff00;
+}
+
+.level-progress {
+    font-size: 12px;
+    color: #00ff00;
+}
+
+#death-screen h2 {
+    color: #ff0000;
+    font-size: 36px;
+    margin-bottom: 20px;
+    text-shadow: 0 0 10px #ff0000;
+}
+
+.death-stats {
+    background: rgba(255, 0, 0, 0.1);
+    padding: 15px;
+    border-radius: 10px;
+    margin: 20px 0;
+    font-size: 18px;
+}
+
+.setting {
+    margin: 15px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.setting label {
+    margin-right: 10px;
+    color: #00ffff;
+}
+
+input[type="range"] {
+    width: 200px;
+    background: linear-gradient(to right, #ff00ff, #00ffff);
+    height: 8px;
+    border-radius: 4px;
+    outline: none;
+}
+
+input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+}
+
+#fps-counter {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 2;
+    color: #00ff00;
+    font-size: 14px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 5px 10px;
+    border-radius: 5px;
+}
+
+/* Анимации */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.pulse {
+    animation: pulse 0.5s infinite;
+}
+
+@keyframes flash {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.flash {
+    animation: flash 0.2s;
+}
+
+/* Эффект частиц */
+.particle {
+    position: absolute;
+    pointer-events: none;
+    z-index: 3;
+}
