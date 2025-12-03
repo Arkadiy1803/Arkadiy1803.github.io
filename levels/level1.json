@@ -1,0 +1,81 @@
+{
+  "name": "Stereo Madness",
+  "length": 3000,
+  "background": "#1a0a2a",
+  "gravity": 0.8,
+  "music": "sounds/level1.mp3",
+  "obstacles": [
+    {
+      "type": "spike",
+      "x": 500,
+      "y": 460,
+      "width": 40,
+      "height": 30,
+      "options": {
+        "color": "#ff0000",
+        "isDeadly": true
+      }
+    },
+    {
+      "type": "block",
+      "x": 800,
+      "y": 420,
+      "width": 100,
+      "height": 80,
+      "options": {
+        "color": "#ff8800",
+        "isDeadly": true
+      }
+    },
+    {
+      "type": "moving",
+      "x": 1300,
+      "y": 440,
+      "width": 150,
+      "height": 30,
+      "options": {
+        "speed": 3,
+        "moveDistance": 200,
+        "color": "#00ff00",
+        "isDeadly": true
+      }
+    },
+    {
+      "type": "portal",
+      "x": 2000,
+      "y": 400,
+      "width": 80,
+      "height": 80,
+      "options": {
+        "portalType": "gravity",
+        "isDeadly": false
+      }
+    }
+  ],
+  "decorations": [
+    {
+      "type": "circle",
+      "x": 400,
+      "y": 100,
+      "width": 50,
+      "height": 50,
+      "color": "#ff00ff"
+    },
+    {
+      "type": "circle",
+      "x": 900,
+      "y": 200,
+      "width": 30,
+      "height": 30,
+      "color": "#00ffff"
+    },
+    {
+      "type": "rect",
+      "x": 1500,
+      "y": 150,
+      "width": 100,
+      "height": 20,
+      "color": "#ffff00"
+    }
+  ]
+}
