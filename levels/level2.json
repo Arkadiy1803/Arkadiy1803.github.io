@@ -1,0 +1,62 @@
+{
+  "name": "Back On Track",
+  "length": 4000,
+  "background": "#0a2a1a",
+  "gravity": 0.8,
+  "music": "sounds/level2.mp3",
+  "obstacles": [
+    {
+      "type": "spike",
+      "x": 400,
+      "y": 460,
+      "width": 40,
+      "height": 30,
+      "options": {
+        "color": "#ff0000",
+        "isDeadly": true
+      }
+    },
+    {
+      "type": "block",
+      "x": 700,
+      "y": 400,
+      "width": 80,
+      "height": 100,
+      "options": {
+        "color": "#ff5500",
+        "isDeadly": true
+      }
+    },
+    {
+      "type": "moving",
+      "x": 1000,
+      "y": 460,
+      "width": 200,
+      "height": 40,
+      "options": {
+        "speed": 2,
+        "moveDistance": 150,
+        "color": "#00aa00",
+        "isDeadly": true
+      }
+    }
+  ],
+  "decorations": [
+    {
+      "type": "rect",
+      "x": 600,
+      "y": 80,
+      "width": 80,
+      "height": 80,
+      "color": "#00ff00"
+    },
+    {
+      "type": "circle",
+      "x": 1200,
+      "y": 120,
+      "width": 40,
+      "height": 40,
+      "color": "#ff8800"
+    }
+  ]
+}
