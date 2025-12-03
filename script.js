@@ -9,7 +9,7 @@ const PLAYER_SIZE = 40;
 // ============== КЛАСС ИГРОКА ==============
 class Player {
     constructor() {
-        this.x = 100;
+        this.x = 100; // Фиксированная позиция по X
         this.y = GROUND_Y - PLAYER_SIZE;
         this.width = PLAYER_SIZE;
         this.height = PLAYER_SIZE;
@@ -20,6 +20,9 @@ class Player {
         this.color = '#ffff00';
         this.trail = [];
         this.trailLength = 10;
+        
+        // Игрок НЕ двигается вперёд сам
+        // Движение создаётся за счёт прокрутки уровня
         
         // Физика как в оригинале
         this.gravity = GRAVITY;
@@ -39,6 +42,9 @@ class Player {
     
     update() {
         if (!this.isAlive) return;
+        
+        // ВНИМАНИЕ: игрок НЕ двигается по X
+        // this.x остаётся постоянным
         
         // Гравитация
         this.velocityY += this.gravity;
@@ -103,7 +109,7 @@ class Player {
     }
     
     reset() {
-        this.x = 100;
+        this.x = 100; // Фиксированная позиция
         this.y = GROUND_Y - PLAYER_SIZE;
         this.velocityY = 0;
         this.isJumping = false;
@@ -116,8 +122,8 @@ class Player {
 // ============== КЛАСС ПРЕПЯТСТВИЙ ==============
 class Obstacle {
     constructor(type, x, y, width, height, options = {}) {
-        this.type = type; // 'spike', 'block', 'moving', 'portal'
-        this.x = x;
+        this.type = type;
+        this.x = x; // Абсолютная позиция в уровне
         this.y = y;
         this.width = width;
         this.height = height;
@@ -133,10 +139,16 @@ class Obstacle {
         // Для порталов
         this.targetRotation = options.targetRotation || 0;
         this.portalType = options.portalType || 'normal';
+        
+        // Для движения вперёд
+        this.scrollSpeed = PLAYER_SPEED;
     }
     
-    update() {
-        // Движение для подвижных платформ
+    update(cameraX) {
+        // ОБНОВЛЕНИЕ: препятствия двигаются навстречу игроку
+        this.x -= this.scrollSpeed;
+        
+        // Дополнительное движение для подвижных платформ
         if (this.type === 'moving') {
             this.x += this.speed * this.direction;
             if (Math.abs(this.x - this.startX) > this.moveDistance) {
@@ -150,17 +162,20 @@ class Obstacle {
         }
     }
     
-    draw(ctx) {
+    draw(ctx, cameraX) {
         ctx.save();
+        
+        // ВЫЧИТАЕМ cameraX для создания эффекта движения
+        const drawX = this.x - cameraX;
         
         switch(this.type) {
             case 'spike':
                 // Шип
                 ctx.fillStyle = this.color;
                 ctx.beginPath();
-                ctx.moveTo(this.x, this.y + this.height);
-                ctx.lineTo(this.x + this.width/2, this.y);
-                ctx.lineTo(this.x + this.width, this.y + this.height);
+                ctx.moveTo(drawX, this.y + this.height);
+                ctx.lineTo(drawX + this.width/2, this.y);
+                ctx.lineTo(drawX + this.width, this.y + this.height);
                 ctx.closePath();
                 ctx.fill();
                 
@@ -172,25 +187,25 @@ class Obstacle {
             case 'block':
                 // Блок
                 ctx.fillStyle = this.color;
-                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.fillRect(drawX, this.y, this.width, this.height);
                 
                 // Текстура
                 ctx.strokeStyle = '#000';
                 ctx.lineWidth = 2;
                 for(let i = 0; i < this.width; i += 10) {
                     for(let j = 0; j < this.height; j += 10) {
-                        ctx.strokeRect(this.x + i, this.y + j, 10, 10);
+                        ctx.strokeRect(drawX + i, this.y + j, 10, 10);
                     }
                 }
                 
                 ctx.shadowColor = this.color;
                 ctx.shadowBlur = 10;
-                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.fillRect(drawX, this.y, this.width, this.height);
                 break;
                 
             case 'portal':
                 // Портал
-                ctx.translate(this.x + this.width/2, this.y + this.height/2);
+                ctx.translate(drawX + this.width/2, this.y + this.height/2);
                 ctx.rotate(this.rotation);
                 
                 ctx.fillStyle = this.portalType === 'gravity' ? '#00ffff' : '#ff00ff';
@@ -212,14 +227,15 @@ class Obstacle {
                 
             case 'moving':
                 // Движущаяся платформа
+                const movingX = this.x - cameraX;
                 ctx.fillStyle = this.color;
-                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.fillRect(movingX, this.y, this.width, this.height);
                 
                 // Анимация движения
                 ctx.strokeStyle = '#ffff00';
                 ctx.lineWidth = 3;
                 ctx.setLineDash([5, 5]);
-                ctx.strokeRect(this.x, this.y, this.width, this.height);
+                ctx.strokeRect(movingX, this.y, this.width, this.height);
                 ctx.setLineDash([]);
                 break;
         }
@@ -228,11 +244,19 @@ class Obstacle {
         ctx.shadowBlur = 0;
     }
     
-    collides(player) {
-        return player.x < this.x + this.width &&
-               player.x + player.width > this.x &&
+    collides(player, cameraX) {
+        // Учитываем cameraX при проверке столкновений
+        const obstacleX = this.x - cameraX;
+        
+        return player.x < obstacleX + this.width &&
+               player.x + player.width > obstacleX &&
                player.y < this.y + this.height &&
                player.y + player.height > this.y;
+    }
+    
+    isVisible(cameraX, canvasWidth) {
+        // Проверка, видно ли препятствие на экране
+        return (this.x - cameraX + this.width > 0) && (this.x - cameraX < canvasWidth);
     }
 }
 
@@ -246,8 +270,9 @@ class Level {
         this.background = levelData.background || '#000';
         this.gravity = levelData.gravity || GRAVITY;
         this.music = levelData.music;
-        this.cameraX = 0;
+        this.cameraX = 0; // Начальная позиция камеры
         this.progress = 0;
+        this.scrollSpeed = PLAYER_SPEED; // Скорость прокрутки
         
         // Загрузка препятствий
         levelData.obstacles.forEach(obs => {
@@ -275,15 +300,21 @@ class Level {
     }
     
     update(player) {
-        // Движение камеры
-        const targetX = player.x - 300;
-        this.cameraX += (targetX - this.cameraX) * 0.1;
+        // КАМЕРА ДВИЖЕТСЯ ВПЕРЁД (основное изменение)
+        this.cameraX += this.scrollSpeed;
         
         // Обновление препятствий
-        this.obstacles.forEach(obs => obs.update());
+        this.obstacles.forEach(obs => {
+            obs.update(this.cameraX);
+        });
         
-        // Расчет прогресса
-        this.progress = Math.min((player.x / this.length) * 100, 100);
+        // Расчет прогресса - на основе cameraX
+        this.progress = Math.min((this.cameraX / this.length) * 100, 100);
+        
+        // Удаление невидимых препятствий (оптимизация)
+        this.obstacles = this.obstacles.filter(obs => 
+            obs.x + obs.width > this.cameraX - 100 // Оставляем с запасом
+        );
     }
     
     draw(ctx, width, height) {
@@ -298,48 +329,61 @@ class Level {
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, width, height);
         
-        // Сетка фона
+        // Сетка фона (движется медленнее для эффекта параллакса)
         ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
         ctx.lineWidth = 1;
-        for(let i = 0; i < width; i += 50) {
+        for(let i = 0; i < width * 2; i += 50) {
             for(let j = 0; j < height; j += 50) {
-                ctx.strokeRect(i - this.cameraX * 0.5, j, 50, 50);
+                ctx.strokeRect(i - this.cameraX * 0.3, j, 50, 50);
             }
         }
         
-        // Декорации
+        // Декорации (движутся с разной скоростью для параллакс-эффекта)
         this.decorations.forEach(dec => {
             ctx.save();
-            ctx.translate(-this.cameraX * 0.7, 0);
+            const parallaxSpeed = 0.5 + Math.random() * 0.3;
+            const decX = dec.x - this.cameraX * parallaxSpeed;
             
-            ctx.fillStyle = dec.color;
-            if (dec.type === 'circle') {
-                ctx.beginPath();
-                ctx.arc(dec.x, dec.y, dec.width/2, 0, Math.PI * 2);
-                ctx.fill();
-            } else {
-                ctx.fillRect(dec.x, dec.y, dec.width, dec.height);
+            // Проверка видимости
+            if (decX + dec.width > 0 && decX < width) {
+                ctx.fillStyle = dec.color;
+                if (dec.type === 'circle') {
+                    ctx.beginPath();
+                    ctx.arc(decX + dec.width/2, dec.y + dec.height/2, dec.width/2, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillRect(decX, dec.y, dec.width, dec.height);
+                }
             }
-            
             ctx.restore();
         });
         
-        // Земля
-        ctx.fillStyle = '#333';
-        ctx.fillRect(-this.cameraX, GROUND_Y, width * 2, height - GROUND_Y);
+        // Земля (движется вместе с камерой)
+        const groundPatternWidth = 100;
+        const patternOffset = -(this.cameraX % groundPatternWidth);
         
-        // Детали земли
-        ctx.fillStyle = '#222';
-        for(let i = 0; i < width * 2; i += 100) {
-            ctx.fillRect(-this.cameraX + i, GROUND_Y, 50, 20);
+        // Рисуем повторяющийся узор земли
+        for(let i = patternOffset; i < width + groundPatternWidth; i += groundPatternWidth) {
+            // Основная плита
+            ctx.fillStyle = '#333';
+            ctx.fillRect(i, GROUND_Y, groundPatternWidth, height - GROUND_Y);
+            
+            // Детали
+            ctx.fillStyle = '#222';
+            ctx.fillRect(i + 10, GROUND_Y, 30, 15);
+            ctx.fillRect(i + 60, GROUND_Y, 30, 15);
+            
+            // Контур
+            ctx.strokeStyle = '#444';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(i, GROUND_Y, groundPatternWidth, height - GROUND_Y);
         }
         
         // Препятствия
         this.obstacles.forEach(obs => {
-            ctx.save();
-            ctx.translate(-this.cameraX, 0);
-            obs.draw(ctx);
-            ctx.restore();
+            if (obs.isVisible(this.cameraX, width)) {
+                obs.draw(ctx, this.cameraX);
+            }
         });
         
         // Прогресс-бар
@@ -356,15 +400,36 @@ class Level {
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 2;
         ctx.strokeRect(progressX, progressY, progressBarWidth, 10);
+        
+        // Отображение процентов
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${Math.round(this.progress)}%`, progressX + progressBarWidth/2, progressY - 5);
     }
     
     checkCollisions(player) {
+        // Проверяем только видимые препятствия
         for (const obstacle of this.obstacles) {
-            if (obstacle.isDeadly && obstacle.collides(player)) {
+            if (obstacle.isDeadly && obstacle.collides(player, this.cameraX)) {
                 return true;
             }
         }
         return false;
+    }
+    
+    // Метод для добавления препятствий на лету
+    addObstacle(type, x, y, width, height, options = {}) {
+        // X указывается относительно начала уровня
+        const absoluteX = this.cameraX + x;
+        this.obstacles.push(new Obstacle(
+            type,
+            absoluteX,
+            y,
+            width,
+            height,
+            options
+        ));
     }
 }
 
@@ -391,10 +456,10 @@ class Renderer {
         }
     }
     
-    update() {
-        // Фоновые частицы
+    update(cameraX) {
+        // Фоновые частицы (движутся медленнее камеры)
         this.backgroundParticles.forEach(p => {
-            p.x -= p.speed;
+            p.x -= 0.5; // Медленная скорость
             if (p.x < 0) {
                 p.x = this.width;
                 p.y = Math.random() * this.height;
@@ -435,17 +500,13 @@ class Renderer {
             this.ctx.fillRect(p.x, p.y, p.size, p.size);
         });
         
-        // Рендер игрока
-        this.ctx.save();
-        this.ctx.translate(-level.cameraX, 0);
+        // Рендер игрока (игрок рисуется в абсолютных координатах)
         player.draw(this.ctx);
-        this.ctx.restore();
         
         // Рендер частиц
         this.particles.forEach(p => {
             this.ctx.save();
             this.ctx.globalAlpha = p.alpha;
-            this.ctx.translate(-level.cameraX, 0);
             this.ctx.fillStyle = p.color;
             this.ctx.fillRect(p.x, p.y, p.size, p.size);
             this.ctx.restore();
@@ -485,12 +546,16 @@ class Game {
         this.currentLevel = null;
         this.levels = [];
         this.currentLevelIndex = 0;
-        this.gameState = 'menu'; // menu, playing, paused, dead, levelSelect
+        this.gameState = 'menu';
         this.score = 0;
         this.attempts = 0;
         this.lastTime = 0;
         this.fps = 60;
         this.audioEnabled = true;
+        
+        // Счётчик для генерации препятствий
+        this.obstacleSpawnTimer = 0;
+        this.obstacleSpawnInterval = 60; // Каждые 60 кадров
         
         // Загрузка уровней
         this.loadLevels();
@@ -508,73 +573,94 @@ class Game {
     }
     
     async loadLevels() {
-        // Уровни можно загрузить из JSON файлов
-        // Здесь создадим 3 уровня программно
+        // Создаём 3 уровня с правильной структурой
         this.levels = [
             {
                 name: "Stereo Madness",
-                length: 3000,
+                length: 5000,
                 background: "#1a0a2a",
                 obstacles: [
                     {type: 'spike', x: 500, y: GROUND_Y - 30, width: 40, height: 30},
                     {type: 'block', x: 800, y: GROUND_Y - 80, width: 100, height: 80},
-                    {type: 'spike', x: 1000, y: GROUND_Y - 30, width: 40, height: 30},
-                    {type: 'moving', x: 1300, y: GROUND_Y - 60, width: 150, height: 30, options: {speed: 3, moveDistance: 200}},
-                    {type: 'portal', x: 2000, y: GROUND_Y - 100, width: 80, height: 80, options: {portalType: 'gravity'}},
-                    {type: 'spike', x: 2200, y: GROUND_Y - 30, width: 40, height: 30},
-                    {type: 'block', x: 2400, y: GROUND_Y - 120, width: 80, height: 120},
-                    {type: 'spike', x: 2600, y: GROUND_Y - 30, width: 40, height: 30}
+                    {type: 'spike', x: 1200, y: GROUND_Y - 30, width: 40, height: 30},
+                    {type: 'block', x: 1500, y: GROUND_Y - 150, width: 80, height: 150},
+                    {type: 'spike', x: 2000, y: GROUND_Y - 30, width: 40, height: 30},
+                    {type: 'moving', x: 2500, y: GROUND_Y - 60, width: 150, height: 30, options: {speed: 3, moveDistance: 200}},
+                    {type: 'portal', x: 3000, y: GROUND_Y - 100, width: 80, height: 80, options: {portalType: 'gravity'}},
+                    {type: 'spike', x: 3500, y: GROUND_Y - 30, width: 40, height: 30},
+                    {type: 'block', x: 4000, y: GROUND_Y - 200, width: 100, height: 200},
+                    {type: 'spike', x: 4500, y: GROUND_Y - 30, width: 40, height: 30}
                 ],
                 decorations: [
                     {type: 'circle', x: 400, y: 100, width: 50, height: 50, color: '#ff00ff'},
                     {type: 'circle', x: 900, y: 200, width: 30, height: 30, color: '#00ffff'},
-                    {type: 'rect', x: 1500, y: 150, width: 100, height: 20, color: '#ffff00'}
+                    {type: 'rect', x: 1500, y: 150, width: 100, height: 20, color: '#ffff00'},
+                    {type: 'circle', x: 2200, y: 80, width: 40, height: 40, color: '#ff8800'},
+                    {type: 'rect', x: 2800, y: 120, width: 80, height: 40, color: '#00ff88'}
                 ]
             },
             {
                 name: "Back On Track",
-                length: 4000,
+                length: 6000,
                 background: "#0a2a1a",
                 obstacles: [
                     {type: 'spike', x: 400, y: GROUND_Y - 30, width: 40, height: 30},
                     {type: 'block', x: 700, y: GROUND_Y - 100, width: 80, height: 100},
                     {type: 'moving', x: 1000, y: GROUND_Y - 40, width: 200, height: 40, options: {speed: 2, moveDistance: 150}},
-                    {type: 'spike', x: 1300, y: GROUND_Y - 30, width: 40, height: 30},
-                    {type: 'block', x: 1600, y: GROUND_Y - 150, width: 100, height: 150},
-                    {type: 'portal', x: 2000, y: GROUND_Y - 100, width: 80, height: 80},
-                    {type: 'moving', x: 2500, y: GROUND_Y - 80, width: 120, height: 80, options: {speed: 4, moveDistance: 300}},
-                    {type: 'spike', x: 3000, y: GROUND_Y - 30, width: 40, height: 30},
-                    {type: 'block', x: 3300, y: GROUND_Y - 200, width: 150, height: 200}
+                    {type: 'spike', x: 1400, y: GROUND_Y - 30, width: 40, height: 30},
+                    {type: 'block', x: 1800, y: GROUND_Y - 150, width: 100, height: 150},
+                    {type: 'moving', x: 2200, y: GROUND_Y - 80, width: 150, height: 80, options: {speed: 4, moveDistance: 300}},
+                    {type: 'portal', x: 2700, y: GROUND_Y - 100, width: 80, height: 80},
+                    {type: 'spike', x: 3200, y: GROUND_Y - 30, width: 40, height: 30},
+                    {type: 'block', x: 3600, y: GROUND_Y - 200, width: 150, height: 200},
+                    {type: 'moving', x: 4100, y: GROUND_Y - 60, width: 180, height: 60, options: {speed: 3, moveDistance: 250}},
+                    {type: 'spike', x: 4600, y: GROUND_Y - 30, width: 40, height: 30},
+                    {type: 'block', x: 5000, y: GROUND_Y - 250, width: 120, height: 250},
+                    {type: 'spike', x: 5500, y: GROUND_Y - 30, width: 40, height: 30}
                 ],
                 decorations: [
                     {type: 'rect', x: 600, y: 80, width: 80, height: 80, color: '#00ff00'},
                     {type: 'circle', x: 1200, y: 120, width: 40, height: 40, color: '#ff8800'},
-                    {type: 'rect', x: 1800, y: 180, width: 60, height: 60, color: '#0088ff'}
+                    {type: 'rect', x: 1800, y: 180, width: 60, height: 60, color: '#0088ff'},
+                    {type: 'circle', x: 2400, y: 90, width: 50, height: 50, color: '#ff0088'},
+                    {type: 'rect', x: 3000, y: 140, width: 70, height: 30, color: '#88ff00'},
+                    {type: 'circle', x: 3700, y: 110, width: 35, height: 35, color: '#00ffff'},
+                    {type: 'rect', x: 4300, y: 160, width: 90, height: 40, color: '#ff8800'}
                 ]
             },
             {
                 name: "Polargeist",
-                length: 5000,
+                length: 7000,
                 background: "#1a1a3a",
                 obstacles: [
                     {type: 'block', x: 300, y: GROUND_Y - 200, width: 100, height: 200},
-                    {type: 'spike', x: 500, y: GROUND_Y - 30, width: 40, height: 30},
-                    {type: 'moving', x: 800, y: GROUND_Y - 60, width: 180, height: 60, options: {speed: 5, moveDistance: 250}},
-                    {type: 'portal', x: 1200, y: GROUND_Y - 100, width: 80, height: 80, options: {portalType: 'gravity'}},
-                    {type: 'spike', x: 1500, y: GROUND_Y - 30, width: 40, height: 30},
-                    {type: 'block', x: 1800, y: GROUND_Y - 250, width: 120, height: 250},
-                    {type: 'moving', x: 2200, y: GROUND_Y - 40, width: 250, height: 40, options: {speed: 3, moveDistance: 400}},
-                    {type: 'spike', x: 2800, y: GROUND_Y - 30, width: 40, height: 30},
-                    {type: 'portal', x: 3200, y: GROUND_Y - 100, width: 80, height: 80},
+                    {type: 'spike', x: 600, y: GROUND_Y - 30, width: 40, height: 30},
+                    {type: 'moving', x: 900, y: GROUND_Y - 60, width: 180, height: 60, options: {speed: 5, moveDistance: 250}},
+                    {type: 'portal', x: 1300, y: GROUND_Y - 100, width: 80, height: 80, options: {portalType: 'gravity'}},
+                    {type: 'spike', x: 1700, y: GROUND_Y - 30, width: 40, height: 30},
+                    {type: 'block', x: 2100, y: GROUND_Y - 250, width: 120, height: 250},
+                    {type: 'moving', x: 2500, y: GROUND_Y - 40, width: 250, height: 40, options: {speed: 3, moveDistance: 400}},
+                    {type: 'spike', x: 3000, y: GROUND_Y - 30, width: 40, height: 30},
+                    {type: 'portal', x: 3400, y: GROUND_Y - 100, width: 80, height: 80},
                     {type: 'block', x: 3800, y: GROUND_Y - 300, width: 150, height: 300},
-                    {type: 'spike', x: 4200, y: GROUND_Y - 30, width: 40, height: 30},
-                    {type: 'moving', x: 4500, y: GROUND_Y - 100, width: 200, height: 100, options: {speed: 4, moveDistance: 200}}
+                    {type: 'spike', x: 4300, y: GROUND_Y - 30, width: 40, height: 30},
+                    {type: 'moving', x: 4700, y: GROUND_Y - 100, width: 200, height: 100, options: {speed: 4, moveDistance: 200}},
+                    {type: 'block', x: 5200, y: GROUND_Y - 180, width: 100, height: 180},
+                    {type: 'spike', x: 5600, y: GROUND_Y - 30, width: 40, height: 30},
+                    {type: 'moving', x: 6000, y: GROUND_Y - 80, width: 180, height: 80, options: {speed: 6, moveDistance: 350}},
+                    {type: 'portal', x: 6500, y: GROUND_Y - 100, width: 80, height: 80, options: {portalType: 'gravity'}}
                 ],
                 decorations: [
                     {type: 'circle', x: 200, y: 50, width: 70, height: 70, color: '#ff0088'},
-                    {type: 'rect', x: 900, y: 90, width: 90, height: 90, color: '#88ff00'},
-                    {type: 'circle', x: 1600, y: 160, width: 50, height: 50, color: '#0088ff'},
-                    {type: 'rect', x: 2400, y: 120, width: 120, height: 40, color: '#ff8800'}
+                    {type: 'rect', x: 800, y: 90, width: 90, height: 90, color: '#88ff00'},
+                    {type: 'circle', x: 1400, y: 160, width: 50, height: 50, color: '#0088ff'},
+                    {type: 'rect', x: 2000, y: 120, width: 120, height: 40, color: '#ff8800'},
+                    {type: 'circle', x: 2600, y: 70, width: 60, height: 60, color: '#00ff88'},
+                    {type: 'rect', x: 3200, y: 140, width: 80, height: 60, color: '#ff00ff'},
+                    {type: 'circle', x: 3900, y: 100, width: 45, height: 45, color: '#ffff00'},
+                    {type: 'rect', x: 4500, y: 180, width: 100, height: 30, color: '#00ffff'},
+                    {type: 'circle', x: 5100, y: 130, width: 55, height: 55, color: '#ff8800'},
+                    {type: 'rect', x: 5800, y: 90, width: 70, height: 50, color: '#8800ff'}
                 ]
             }
         ];
@@ -681,7 +767,6 @@ class Game {
         });
         
         document.getElementById('sfx-volume').addEventListener('input', (e) => {
-            // Сохраняем громкость SFX
             localStorage.setItem('sfxVolume', e.target.value);
         });
         
@@ -704,7 +789,8 @@ class Game {
         // Запуск музыки
         const bgMusic = document.getElementById('bg-music');
         bgMusic.currentTime = 0;
-        bgMusic.play().catch(e => console.log("Автовоспроизведение заблокировано"));
+        bgMusic.volume = 0.5;
+        bgMusic.play().catch(e => console.log("Автовоспроизведение заблокировано, нажмите на экран"));
     }
     
     selectLevel(index) {
@@ -716,7 +802,6 @@ class Game {
         this.gameState = 'paused';
         document.getElementById('pause-menu').classList.remove('hidden');
         
-        // Пауза музыки
         document.getElementById('bg-music').pause();
     }
     
@@ -724,7 +809,6 @@ class Game {
         this.gameState = 'playing';
         document.getElementById('pause-menu').classList.add('hidden');
         
-        // Возобновление музыки
         document.getElementById('bg-music').play();
     }
     
@@ -748,7 +832,6 @@ class Game {
         document.getElementById('death-screen').classList.add('hidden');
         document.getElementById('pause-menu').classList.add('hidden');
         
-        // Остановка музыки
         document.getElementById('bg-music').pause();
     }
     
@@ -756,7 +839,6 @@ class Game {
         document.getElementById('menu').classList.add('hidden');
         document.getElementById('level-select').classList.remove('hidden');
         
-        // Обновление прогресса уровней
         for(let i = 1; i <= 3; i++) {
             const progress = localStorage.getItem(`level${i}_progress`) || 0;
             document.getElementById(`progress-${i}`).textContent = `${progress}%`;
@@ -775,7 +857,6 @@ class Game {
         playSound('death');
         this.renderer.addEffect('flash', 10, 0.7);
         
-        // Сохранение прогресса
         if (this.currentLevel) {
             const progress = Math.round(this.currentLevel.progress);
             const levelKey = `level${this.currentLevelIndex + 1}_progress`;
@@ -785,13 +866,11 @@ class Game {
             }
         }
         
-        // Обновление UI
         document.getElementById('death-progress').textContent = 
             `${Math.round(this.currentLevel?.progress || 0)}%`;
         document.getElementById('death-attempt').textContent = this.attempts;
         document.getElementById('death-screen').classList.remove('hidden');
         
-        // Создание частиц смерти
         for(let i = 0; i < 50; i++) {
             createParticles(
                 this.player.x + this.player.width/2,
@@ -810,7 +889,6 @@ class Game {
             document.getElementById('attempts').textContent = `Attempts: ${this.attempts}`;
         }
         
-        // FPS счетчик
         if (!document.getElementById('fps-counter').classList.contains('hidden')) {
             document.getElementById('fps-counter').textContent = `${Math.round(this.fps)} FPS`;
         }
@@ -828,7 +906,7 @@ class Game {
         if (this.gameState === 'playing' && this.currentLevel) {
             this.player.update();
             this.currentLevel.update(this.player);
-            this.renderer.update();
+            this.renderer.update(this.currentLevel.cameraX);
             
             // Проверка столкновений
             if (this.currentLevel.checkCollisions(this.player)) {
@@ -836,8 +914,7 @@ class Game {
             }
             
             // Проверка завершения уровня
-            if (this.player.x >= this.currentLevel.length) {
-                // Уровень пройден
+            if (this.currentLevel.cameraX >= this.currentLevel.length) {
                 this.completeLevel();
             }
             
@@ -856,7 +933,6 @@ class Game {
         alert(`Level Complete! Progress: 100%\nAttempts: ${this.attempts}`);
         this.showLevelSelect();
         
-        // Сохранение 100% прогресса
         const levelKey = `level${this.currentLevelIndex + 1}_progress`;
         localStorage.setItem(levelKey, '100');
     }
@@ -864,10 +940,15 @@ class Game {
 
 // ============== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==============
 function playSound(soundId) {
-    const sound = document.getElementById(`${soundId}-sound`);
-    if (sound) {
-        sound.currentTime = 0;
-        sound.play().catch(e => console.log("Звук не может быть воспроизведен"));
+    try {
+        const sound = document.getElementById(`${soundId}-sound`);
+        if (sound) {
+            sound.currentTime = 0;
+            sound.volume = (soundId === 'jump') ? 0.3 : 0.5;
+            sound.play().catch(e => console.log("Звук не может быть воспроизведен"));
+        }
+    } catch (e) {
+        console.log("Ошибка воспроизведения звука:", e);
     }
 }
 
@@ -887,29 +968,68 @@ function createParticles(x, y, count, color) {
 
 // ============== ЗАПУСК ИГРЫ ==============
 window.addEventListener('load', () => {
-    // Создание звуков если их нет
-    createAudioFiles();
+    // Создание простых звуков через Web Audio API для демо
+    createDemoSounds();
     
-    // Инициализация игры
     window.game = new Game();
-    console.log('Geometry Dash Clone загружен!');
+    console.log('Geometry Dash Clone загружен! Движение исправлено.');
 });
 
-// Создание базовых аудиофайлов (заглушки)
-function createAudioFiles() {
-    // В реальном проекте здесь должны быть настоящие аудиофайлы
-    // Эти функции создают базовые звуки через Web Audio API
-    
+// Создание демо-звуков
+function createDemoSounds() {
     try {
-        // Создаем простой звук прыжка
-        const jumpSound = document.getElementById('jump-sound');
-        if (jumpSound.src.includes('#')) {
-            // Заглушка - в реальном проекте используйте настоящие файлы
-            console.log('Используйте реальные аудиофайлы для лучшего качества');
+        // Простой звук прыжка (бип)
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // Создаем прыжковый звук
+        function createJumpSound() {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(400, audioContext.currentTime + 0.1);
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+            
+            oscillator.start();
+            oscillator.stop(audioContext.currentTime + 0.2);
         }
         
-        // То же для других звуков
+        // Создаем звук смерти
+        function createDeathSound() {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.setValueAtTime(300, audioContext.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(100, audioContext.currentTime + 0.3);
+            
+            gainNode.gain.setValueAtTime(0.5, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+            
+            oscillator.start();
+            oscillator.stop(audioContext.currentTime + 0.3);
+        }
+        
+        // Переопределяем playSound для использования сгенерированных звуков
+        const originalPlaySound = window.playSound;
+        window.playSound = function(soundId) {
+            if (soundId === 'jump') {
+                createJumpSound();
+            } else if (soundId === 'death') {
+                createDeathSound();
+            } else {
+                if (originalPlaySound) originalPlaySound(soundId);
+            }
+        };
+        
     } catch (e) {
-        console.log('Аудио система недоступна:', e);
+        console.log("Web Audio API не доступен:", e);
     }
 }
